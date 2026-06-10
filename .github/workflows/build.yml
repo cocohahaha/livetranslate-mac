@@ -33,6 +33,7 @@ jobs:
           pyinstaller --noconfirm --windowed --name LiveTranslate
           --osx-bundle-identifier com.cocofeng.livetranslate
           --collect-all faster_whisper
+          --collect-all sherpa_onnx
           packaging/entry.py
 
       - name: Package (macOS)

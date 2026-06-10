@@ -10,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 
-from .asr import Recognizer
+from .asr import make_recognizer
 from .audio import MicCapture, list_input_devices
 from .config import Config, load_config
 from .translator import Translator
@@ -24,8 +24,9 @@ class Pipeline:
         self.cfg = cfg
         self.on_original = on_original  # (seq, text, lang)
         self.on_translation = on_translation  # (seq, text)
-        print(f"[init] 加载 faster-whisper 模型 {cfg.asr.model}（首次运行会自动下载）…")
-        self.recognizer = Recognizer(cfg.asr)
+        engine = cfg.asr.engine if cfg.asr.engine != "whisper" else f"whisper/{cfg.asr.model}"
+        print(f"[init] 加载识别模型 {engine}（首次运行会自动下载）…")
+        self.recognizer = make_recognizer(cfg.asr)
         self.translator = Translator(cfg.translation) if cfg.translation.enabled else None
         if self.translator:
             if self.translator.check():
@@ -175,6 +176,7 @@ def main():
     if args.device is not None:
         cfg.audio.device = args.device
     if args.model is not None:
+        cfg.asr.engine = "whisper"
         cfg.asr.model = args.model
     if args.no_translate:
         cfg.translation.enabled = False

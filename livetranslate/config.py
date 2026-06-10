@@ -23,8 +23,9 @@ vad:
   min_speech_ms: 250    # 短于该时长的语音片段丢弃
 
 asr:
-  model: small          # faster-whisper 模型：tiny/base/small/medium/large-v3
-  compute_type: int8    # Apple Silicon CPU 推荐 int8
+  engine: sensevoice    # sensevoice（中文优化、速度快，推荐）或 whisper
+  model: small          # whisper 模型名（engine: whisper 时生效）：tiny/base/small/medium
+  compute_type: int8    # whisper 计算精度，CPU 推荐 int8
   languages: [zh, en]   # 限定自动检测的语言范围，留空 [] 表示不限
 
 translation:
@@ -58,6 +59,7 @@ class VadConfig:
 
 @dataclass
 class AsrConfig:
+    engine: str = "sensevoice"
     model: str = "small"
     compute_type: str = "int8"
     languages: list[str] = field(default_factory=lambda: ["zh", "en"])
