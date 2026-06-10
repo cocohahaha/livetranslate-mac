@@ -35,6 +35,10 @@ ollama serve   # 保持运行
 
 ## 使用
 
+**非技术用户：双击项目里的 `启动实时字幕.command`（或桌面快捷方式）即可**——它会自动拉起本地翻译服务并显示悬浮字幕条；不用时右键字幕条选"退出"或关闭终端窗口。
+
+命令行方式：
+
 ```bash
 .venv/bin/livetranslate                 # 启动悬浮字幕
 .venv/bin/livetranslate --no-overlay    # 仅终端输出
