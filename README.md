@@ -51,6 +51,22 @@ ollama serve   # 保持运行
 - macOS 首次拾音需在 **系统设置 → 隐私与安全性 → 麦克风** 中给终端授权。
 - 所有参数在首次运行生成的 `config.yaml` 中调整（设备、模型、翻译接口、字幕样式等）；商业 API 的 key 也可用环境变量 `LT_API_KEY` 注入。
 
+## 分发给同事（免安装包）
+
+GitHub Actions 会自动打包三个平台的版本（仓库 Actions 页面手动触发 `build`，或打 `v*` tag 自动发 Release）：
+
+| 包 | 适用 |
+|---|---|
+| `LiveTranslate-mac-apple-silicon.zip` | M1/M2/M3/M4 芯片的 Mac |
+| `LiveTranslate-mac-intel.zip` | 2020 年以前的老款 Intel Mac |
+| `LiveTranslate-windows.zip` | Windows 10/11 |
+
+同事拿到 zip 后解压双击即可，无需装 Python。注意事项：
+
+- **macOS**：未签名应用首次打开需 右键 → 打开（或 系统设置→隐私与安全性 里允许）；首次使用需授权麦克风。
+- **Windows**：SmartScreen 提示时点"更多信息 → 仍要运行"。
+- **翻译功能**：识别字幕开箱即用（首次自动下载识别模型，国内网络走 hf-mirror 镜像）；译文需要本机装 [Ollama](https://ollama.com/download)（装好后 `ollama pull qwen2.5:3b`），或在 `~/.livetranslate/config.yaml` 里填任意 OpenAI 兼容 API。没配翻译时只显示原文字幕。
+
 ## 调研背景（2026-06）
 
 近期口碑较好的同类工具：

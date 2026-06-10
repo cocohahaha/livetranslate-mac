@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+DEFAULT_CONFIG_PATH = Path.home() / ".livetranslate" / "config.yaml"
 
 DEFAULT_CONFIG_YAML = """\
 # livetranslate-mac 配置文件
@@ -18,7 +18,7 @@ audio:
 
 vad:
   threshold: 0.5        # Silero VAD 语音判定阈值
-  min_silence_ms: 500   # 静音超过该时长则切断一句
+  min_silence_ms: 400   # 静音超过该时长则切断一句
   max_utterance_s: 12   # 单句最长秒数，超过强制切断
   min_speech_ms: 250    # 短于该时长的语音片段丢弃
 
@@ -51,7 +51,7 @@ class AudioConfig:
 @dataclass
 class VadConfig:
     threshold: float = 0.5
-    min_silence_ms: int = 500
+    min_silence_ms: int = 400
     max_utterance_s: float = 12.0
     min_speech_ms: int = 250
 
@@ -92,6 +92,7 @@ class Config:
 def load_config(path: Path | None = None) -> Config:
     path = path or DEFAULT_CONFIG_PATH
     if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(DEFAULT_CONFIG_YAML, encoding="utf-8")
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 

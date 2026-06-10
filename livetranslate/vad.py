@@ -21,7 +21,7 @@ class StreamingSegmenter:
         self.cfg = cfg
         self.buffer = np.zeros(0, dtype=np.float32)
         self._since_check = 0
-        self._check_every = int(0.3 * SAMPLE_RATE)
+        self._check_every = int(0.25 * SAMPLE_RATE)
         self._vad_options = VadOptions(
             threshold=cfg.threshold,
             min_speech_duration_ms=cfg.min_speech_ms,

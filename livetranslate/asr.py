@@ -23,7 +23,15 @@ class AsrResult:
 class Recognizer:
     def __init__(self, cfg: AsrConfig):
         self.cfg = cfg
-        self.model = WhisperModel(cfg.model, device="cpu", compute_type=cfg.compute_type)
+        import os
+
+        # 模型托管在 HuggingFace，国内网络直连常失败；未显式配置时走镜像
+        os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
+        threads = max(4, (os.cpu_count() or 8) // 2)
+        self.model = WhisperModel(
+            cfg.model, device="cpu", compute_type=cfg.compute_type, cpu_threads=threads
+        )
 
     def transcribe(self, audio: np.ndarray) -> AsrResult | None:
         segments, info = self.model.transcribe(

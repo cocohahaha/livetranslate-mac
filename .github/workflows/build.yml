@@ -1,0 +1,65 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: mac-apple-silicon
+          - os: macos-13
+            label: mac-intel
+          - os: windows-latest
+            label: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install . pyinstaller
+
+      - name: Build
+        run: >
+          pyinstaller --noconfirm --windowed --name LiveTranslate
+          --osx-bundle-identifier com.cocofeng.livetranslate
+          --collect-all faster_whisper
+          packaging/entry.py
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          plutil -insert NSMicrophoneUsageDescription -string "需要使用麦克风进行实时字幕识别" dist/LiveTranslate.app/Contents/Info.plist
+          cd dist && ditto -c -k --keepParent LiveTranslate.app "LiveTranslate-${{ matrix.label }}.zip"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path dist/LiveTranslate -DestinationPath "dist/LiveTranslate-${{ matrix.label }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiveTranslate-${{ matrix.label }}
+          path: dist/LiveTranslate-*.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: LiveTranslate-*.zip

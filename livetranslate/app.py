@@ -18,10 +18,12 @@ from .vad import StreamingSegmenter
 
 
 class Pipeline:
+    """识别与翻译两条线程解耦：翻译慢时不阻塞下一句话的识别。"""
+
     def __init__(self, cfg: Config, on_original, on_translation):
         self.cfg = cfg
-        self.on_original = on_original
-        self.on_translation = on_translation
+        self.on_original = on_original  # (seq, text, lang)
+        self.on_translation = on_translation  # (seq, text)
         print(f"[init] 加载 faster-whisper 模型 {cfg.asr.model}（首次运行会自动下载）…")
         self.recognizer = Recognizer(cfg.asr)
         self.translator = Translator(cfg.translation) if cfg.translation.enabled else None
@@ -31,25 +33,27 @@ class Pipeline:
             else:
                 print(
                     f"[warn] 翻译接口 {cfg.translation.base_url} 连不通，"
-                    "字幕仍可用但不会有译文（本机 Ollama 请先执行 `ollama serve`）"
+                    "本次运行只显示识别字幕（本机 Ollama 请先执行 `ollama serve`）"
                 )
+                self.translator = None
         self.capture = MicCapture(cfg.audio)
         self.segmenter = StreamingSegmenter(cfg.vad)
         self._stop = threading.Event()
+        self._seq = 0
+        self._translate_queue: queue.Queue = queue.Queue()
 
     def handle_utterance(self, audio):
         result = self.recognizer.transcribe(audio)
         if result is None:
             return
-        self.on_original(result.text, result.language)
+        self._seq += 1
+        seq = self._seq
+        self.on_original(seq, result.text, result.language)
         print(f"[{result.language}] {result.text}")
         if self.translator:
-            translated = self.translator.translate(result.text, result.language)
-            if translated:
-                self.on_translation(translated)
-                print(f"  ↳ {translated}")
+            self._translate_queue.put((seq, result.text, result.language))
 
-    def _worker(self):
+    def _asr_worker(self):
         while not self._stop.is_set():
             try:
                 chunk = self.capture.chunks.get(timeout=0.5)
@@ -58,9 +62,22 @@ class Pipeline:
             for utterance in self.segmenter.feed(chunk):
                 self.handle_utterance(utterance)
 
+    def _translate_worker(self):
+        while not self._stop.is_set():
+            try:
+                seq, text, lang = self._translate_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            translated = self.translator.translate(text, lang)
+            if translated:
+                self.on_translation(seq, translated)
+                print(f"  ↳ {translated}")
+
     def start(self):
         self.capture.start()
-        threading.Thread(target=self._worker, daemon=True).start()
+        threading.Thread(target=self._asr_worker, daemon=True).start()
+        if self.translator:
+            threading.Thread(target=self._translate_worker, daemon=True).start()
         print("[ready] 开始拾音（macOS 首次运行需在 系统设置→隐私与安全性→麦克风 中授权终端）")
 
     def stop(self):
@@ -74,12 +91,21 @@ def run_file_mode(cfg: Config, path: str):
 
     audio = decode_audio(path, sampling_rate=16000)
     print(f"[file] {path}（{len(audio) / 16000:.1f}s）")
-    pipeline = Pipeline(cfg, on_original=lambda t, l: None, on_translation=lambda t: None)
+    done = threading.Event()
+    pipeline = Pipeline(
+        cfg,
+        on_original=lambda *a: None if pipeline.translator else done.set(),
+        on_translation=lambda *a: done.set(),
+    )
+    if pipeline.translator:
+        threading.Thread(target=pipeline._translate_worker, daemon=True).start()
     pipeline.handle_utterance(audio)
+    if pipeline.translator:
+        done.wait(timeout=cfg.translation.timeout_s + 5)
 
 
 def run_terminal(cfg: Config):
-    pipeline = Pipeline(cfg, on_original=lambda t, l: None, on_translation=lambda t: None)
+    pipeline = Pipeline(cfg, on_original=lambda *a: None, on_translation=lambda *a: None)
     pipeline.start()
     try:
         # 不用 signal.pause()：多线程下 SIGINT 可能落在非主线程，
@@ -103,8 +129,8 @@ def run_overlay(cfg: Config):
 
     pipeline = Pipeline(
         cfg,
-        on_original=lambda text, lang: bridge.original.emit(text, lang),
-        on_translation=lambda text: bridge.translation.emit(text),
+        on_original=lambda seq, text, lang: bridge.original.emit(seq, text, lang),
+        on_translation=lambda seq, text: bridge.translation.emit(seq, text),
     )
     overlay.show()
     pipeline.start()
@@ -121,7 +147,12 @@ def run_overlay(cfg: Config):
 
 
 def main():
-    # 日志重定向到文件/管道时保持逐行输出
+    # 打包成 .app/.exe 后没有控制台，stdout 不存在时把日志写到用户目录
+    if sys.stdout is None or sys.stderr is None:
+        (Path.home() / ".livetranslate").mkdir(exist_ok=True)
+        log = open(Path.home() / ".livetranslate" / "app.log", "a", encoding="utf-8")
+        sys.stdout = sys.stdout or log
+        sys.stderr = sys.stderr or log
     sys.stdout.reconfigure(line_buffering=True)
     parser = argparse.ArgumentParser(
         prog="livetranslate",
