@@ -1,0 +1,25 @@
+[project]
+name = "livetranslate-mac"
+version = "0.1.0"
+description = "macOS 本地实时双语字幕工具：麦克风拾音 → VAD 断句 → faster-whisper 中英识别 → LLM 翻译 → 悬浮字幕条（复刻自 TheDeathDragon/LiveTranslate 的架构）"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+dependencies = [
+    "faster-whisper>=1.1.0",
+    "sounddevice>=0.5.0",
+    "numpy>=1.26",
+    "PyQt6>=6.7",
+    "PyYAML>=6.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+livetranslate = "livetranslate.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["livetranslate"]
