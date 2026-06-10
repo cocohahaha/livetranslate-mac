@@ -95,7 +95,7 @@ class Translator:
             pass
 
     def check(self) -> bool:
-        """启动时连通性自检。"""
+        """启动时连通性自检；本机 Ollama 没在运行时尝试自动拉起。"""
         try:
             if self._detect_ollama():
                 return True
@@ -106,4 +106,36 @@ class Translator:
             )
             return resp.ok
         except Exception:
+            pass
+        if self._try_start_ollama():
+            self._is_ollama = None
+            return self._detect_ollama()
+        return False
+
+    def _try_start_ollama(self) -> bool:
+        """配置指向本机 Ollama 端口但服务没起来时，替用户启动它。"""
+        import os
+        import shutil
+        import subprocess
+        import time
+
+        if "localhost:11434" not in self.cfg.base_url and "127.0.0.1:11434" not in self.cfg.base_url:
             return False
+        exe = shutil.which("ollama") or next(
+            (p for p in ("/opt/homebrew/bin/ollama", "/usr/local/bin/ollama") if os.path.exists(p)),
+            None,
+        )
+        if not exe:
+            return False
+        print("[init] 正在自动启动 Ollama 翻译服务…")
+        subprocess.Popen(
+            [exe, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        for _ in range(15):
+            time.sleep(1)
+            try:
+                if self.session.get(self._root, timeout=2).ok:
+                    return True
+            except Exception:
+                continue
+        return False
