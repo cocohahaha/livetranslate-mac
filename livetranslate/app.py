@@ -7,6 +7,7 @@ import queue
 import signal
 import sys
 import threading
+import time
 from pathlib import Path
 
 from .asr import Recognizer
@@ -81,7 +82,10 @@ def run_terminal(cfg: Config):
     pipeline = Pipeline(cfg, on_original=lambda t, l: None, on_translation=lambda t: None)
     pipeline.start()
     try:
-        signal.pause()
+        # 不用 signal.pause()：多线程下 SIGINT 可能落在非主线程，
+        # pause() 永远不会醒；sleep 循环能让解释器及时检查信号标志
+        while True:
+            time.sleep(0.3)
     except KeyboardInterrupt:
         pass
     finally:
@@ -105,12 +109,20 @@ def run_overlay(cfg: Config):
     overlay.show()
     pipeline.start()
     signal.signal(signal.SIGINT, lambda *_: app.quit())
+    # Qt 事件循环在 C 层阻塞，需要周期性回到解释器才能处理 Python 信号处理器
+    from PyQt6.QtCore import QTimer
+
+    tick = QTimer()
+    tick.timeout.connect(lambda: None)
+    tick.start(200)
     code = app.exec()
     pipeline.stop()
     sys.exit(code)
 
 
 def main():
+    # 日志重定向到文件/管道时保持逐行输出
+    sys.stdout.reconfigure(line_buffering=True)
     parser = argparse.ArgumentParser(
         prog="livetranslate",
         description="macOS 本地实时双语字幕：中英自动识别 + 互译，悬浮字幕条显示",
