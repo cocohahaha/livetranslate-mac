@@ -28,10 +28,21 @@ jobs:
       - name: Install
         run: pip install . pyinstaller
 
-      - name: Build
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
         run: >
           pyinstaller --noconfirm --windowed --name LiveTranslate
           --osx-bundle-identifier com.cocofeng.livetranslate
+          --icon packaging/icon.icns
+          --collect-all faster_whisper
+          --collect-all sherpa_onnx
+          packaging/entry.py
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          pyinstaller --noconfirm --windowed --name LiveTranslate
+          --icon packaging/icon.ico
           --collect-all faster_whisper
           --collect-all sherpa_onnx
           packaging/entry.py
